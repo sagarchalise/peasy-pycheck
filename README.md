@@ -1,4 +1,4 @@
 # peasy-yapf
-Python Code Formatting  for geany based on peasy
+Python Code Formatting  for Geany IDE based on [Peasy](https://github.com/kugel-/peasy)
 
 `pip install yapf`
