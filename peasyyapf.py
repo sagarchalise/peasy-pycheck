@@ -1,8 +1,10 @@
+import os
 from gi.repository import Gtk
 from gi.repository import Geany
 from gi.repository import Peasy
 try:
     from yapf.yapflib.yapf_api import FormatCode  # reformat a string of code
+    from yapf.yapflib.file_resources import GetDefaultStyleForDir
 except ImportError:
     print('No YAPF available')
     FormatCode = None
@@ -37,7 +39,8 @@ class YAPFPlugin(Peasy.Plugin):
         contents = sci.get_contents(-1)
         if not contents:
             return
-        format_text, formatted = FormatCode(contents)
+        style = GetDefaultStyleForDir(os.path.dirname(cur_doc.real_path))
+        format_text, formatted = FormatCode(contents, style_config=style)
         if formatted:
             sci.set_text(format_text)
             Geany.msgwin_clear_tab(Geany.MessageWindowTabNum.MESSAGE)
