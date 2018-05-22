@@ -40,6 +40,9 @@ class YAPFPlugin(Peasy.Plugin):
         if not contents:
             return
         style = GetDefaultStyleForDir(os.path.dirname(cur_doc.real_path))
+        project = self.geany_plugin.geany_data.app.project
+        if project and not style:
+            style = GetDefaultStyleForDir(project.base_path)
         format_text, formatted = FormatCode(contents, style_config=style)
         if formatted:
             sci.set_text(format_text)
