@@ -1,7 +1,0 @@
-[Plugin]
-Module=peasyyapf
-Loader=python3
-Name=Python Code Format
-Description=Python code formatting based on peasy. 
-Authors=Sagar Chalise <chalisesagar@gmail.com>
-X-Peasy-API=228
