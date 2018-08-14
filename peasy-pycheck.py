@@ -8,42 +8,15 @@ from gi.repository import Gtk
 from gi.repository import Geany
 from gi.repository import Peasy
 
-# see if black is available
-try:
-    import black
-except ImportError:
-    print("black formatter not available trying YAPF")
-    try:
-        from yapf.yapflib.yapf_api import (
-            FormatCode
-        )  # reformat a string of code
-        from yapf.yapflib.file_resources import GetDefaultStyleForDir
-    except ImportError:
-        print("No YAPF available")
-        FormatCode = None
-else:
-    GetDefaultStyleForDir = None
-
-    def FormatCode(content, style_config=None):
-        try:
-            changed_content = black.format_file_contents(
-                content, line_length=79, fast=False
-            )
-        except black.NothingChanged:
-            return "", False
-        else:
-            return changed_content, True
-
-
 _ = Peasy.gettext
 
 
-def is_linter_available(modname, alternatives):
+def is_mod_available(modname, alternatives):
     try:
         importlib.import_module(modname)
     except ImportError:
         try:
-            return is_linter_available(alternatives[0], alternatives[1:])
+            return is_mod_available(alternatives[0], alternatives[1:])
         except Exception as exc:
             print(exc)
             return False, ""
@@ -51,7 +24,50 @@ def is_linter_available(modname, alternatives):
         return True, modname
 
 
-IS_LINTER_AVAILABLE, name = is_linter_available(
+IS_FORMATTER_AVAILABLE, name = is_mod_available("black", ["autopep8", "yapf"])
+if IS_FORMATTER_AVAILABLE:
+    print("Formatter: {}".format(name))
+
+    def get_formatter(name=name):
+        if name == "black":
+            import black
+
+            GetDefaultStyleForDir = None
+
+            def FormatCode(content, style_config=None):
+                try:
+                    changed_content = black.format_file_contents(
+                        content, line_length=79, fast=False
+                    )
+                except black.NothingChanged:
+                    return "", False
+                else:
+                    return changed_content, True
+
+            return FormatCode, GetDefaultStyleForDir
+        elif name == "yapf":
+            from yapf.yapflib.yapf_api import (
+                FormatCode
+            )  # reformat a string of code
+            from yapf.yapflib.file_resources import GetDefaultStyleForDir
+
+            return FormatCode, GetDefaultStyleForDir
+        elif name == "autopep8":
+            from autopep8 import fix_code
+
+            GetDefaultStyleForDir = None
+
+            def FormatCode(content, style=None):
+                return fix_code(content)
+
+            return FormatCode, GetDefaultStyleForDir
+        return None, None
+
+    code_formatter, default_style_dir = get_formatter()
+else:
+    code_formatter = None
+    default_style_dir = None
+IS_LINTER_AVAILABLE, name = is_mod_available(
     "flake8", ["pylint", "pycodestyle", "pyflakes"]
 )
 if IS_LINTER_AVAILABLE:
@@ -329,7 +345,7 @@ class PyCheckPlugin(Peasy.Plugin):
             Geany.msgwin_switch_tab(Geany.MessageWindowTabNum.MESSAGE, False)
 
     def on_item_click(self, item=None):
-        if not FormatCode:
+        if not code_formatter:
             return
         cur_doc = Geany.document_get_current()
         if (
@@ -342,12 +358,12 @@ class PyCheckPlugin(Peasy.Plugin):
         if not contents:
             return
         style = None
-        if GetDefaultStyleForDir is not None:
-            style = GetDefaultStyleForDir(os.path.dirname(cur_doc.real_path))
+        if default_style_dir is not None:
+            style = default_style_dir(os.path.dirname(cur_doc.real_path))
             project = self.geany_plugin.geany_data.app.project
             if project and not style:
-                style = GetDefaultStyleForDir(project.base_path)
-        format_text, formatted = FormatCode(contents, style_config=style)
+                style = default_style_dir(project.base_path)
+        format_text, formatted = code_formatter(contents, style_config=style)
         if formatted:
             sci.set_text(format_text)
             cur_doc.save_file(False)
