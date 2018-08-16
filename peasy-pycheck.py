@@ -3,7 +3,6 @@ import io
 import importlib
 import tokenize
 import operator
-from concurrent.futures import ThreadPoolExecutor
 from gi.repository import Gtk
 from gi.repository import Geany
 from gi.repository import Peasy
@@ -40,7 +39,7 @@ while True:
                 DEFAULT_LINTER = linter
     break
 
-if DEFAULT_FORMATTER:
+if available_formatters:
     print("Formatter: {}".format(DEFAULT_FORMATTER))
 
     def get_formatter(name=DEFAULT_FORMATTER):
@@ -76,11 +75,10 @@ if DEFAULT_FORMATTER:
             return FormatCode, GetDefaultStyleForDir
         return None, None
 
-    code_formatter, default_style_dir = get_formatter()
+
 else:
-    code_formatter = None
-    default_style_dir = None
-if DEFAULT_LINTER:
+    get_formatter = None
+if available_linters:
     print("Linter: {}".format(DEFAULT_LINTER))
 
     def get_patched_checker(name=DEFAULT_LINTER):
@@ -258,10 +256,13 @@ if DEFAULT_LINTER:
 
             return check_and_get_results
 
-    check_and_get_results = get_patched_checker()
+
+else:
+    get_patched_checker = None
 
 
 def check_python_code(doc, filename, file_content):
+    check_and_get_results = get_patched_checker(DEFAULT_LINTER)
     checks = sorted(
         check_and_get_results(filename, file_content.encode("utf8")), key=operator.itemgetter(0)
     )
@@ -316,21 +317,20 @@ class PyCheckPlugin(Peasy.Plugin, Peasy.PluginConfigure):
 
     def on_document_notify(self, user_data, doc):
         if not DEFAULT_LINTER or doc.file_type.id != Geany.FiletypeID.FILETYPES_PYTHON:
-            return
+            return False
         filename = doc.real_path or doc.file_name
         sci = doc.editor.sci
         file_content = sci.get_contents(sci.get_length() + 1).strip()
         if not file_content:
-            return
+            return False
         Geany.msgwin_clear_tab(Geany.MessageWindowTabNum.MESSAGE)
-        error = False
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            error = executor.submit(check_python_code, doc, filename, file_content).result()
+        error = check_python_code(doc, filename, file_content)
         if error:
             Geany.msgwin_switch_tab(Geany.MessageWindowTabNum.MESSAGE, False)
+        return False
 
     def on_item_click(self, item=None):
-        if not code_formatter:
+        if not get_formatter:
             return
         cur_doc = Geany.document_get_current()
         if not cur_doc or cur_doc.file_type.id != Geany.FiletypeID.FILETYPES_PYTHON:
@@ -339,6 +339,7 @@ class PyCheckPlugin(Peasy.Plugin, Peasy.PluginConfigure):
         contents = sci.get_contents(-1)
         if not contents:
             return
+        code_formatter, default_style_dir = get_formatter(DEFAULT_FORMATTER)
         style = None
         if default_style_dir is not None:
             style = default_style_dir(os.path.dirname(cur_doc.real_path))
@@ -397,8 +398,6 @@ class PyCheckPlugin(Peasy.Plugin, Peasy.PluginConfigure):
         align.props.left_padding = 12
         vbox = Gtk.VBox(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         vbox.set_border_width(2)
-        listbox = Gtk.ListStore(str)
-        listbox.set_data
         label = Gtk.Label(_("Formatter"))
         label.set_alignment(0, 0.5)
         entry = Gtk.ComboBoxText()
