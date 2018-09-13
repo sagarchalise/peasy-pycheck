@@ -281,12 +281,19 @@ class PyCheckPlugin(Peasy.Plugin, Peasy.PluginConfigure):
 
     def do_enable(self):
         geany_data = self.geany_plugin.geany_data
-        self.item = Geany.ui_image_menu_item_new(Gtk.STOCK_EXECUTE, _("Format Python Code"))
-        self.item.connect("activate", self.on_item_click)
-        geany_data.main_widgets.tools_menu.append(self.item)
-        self.item.show_all()
-        self.keys = self.add_key_group("python_code_format", 1)
-        self.keys.add_keybinding("python_code_format", _("Python Code Format"), self.item, 0, 0)
+        fpc = _("Format Python Code")
+        cpc = _("Check Python Code")
+        self.format_item = Geany.ui_image_menu_item_new(Gtk.STOCK_EXECUTE, fpc)
+        self.format_item.connect("activate", self.on_format_item_click)
+        self.lint_item = Geany.ui_image_menu_item_new(Gtk.STOCK_EXECUTE, cpc)
+        self.lint_item.connect("activate", self.on_lint_item_click)
+        geany_data.main_widgets.tools_menu.append(self.format_item)
+        geany_data.main_widgets.tools_menu.append(self.lint_item)
+        self.format_item.show_all()
+        self.lint_item.show_all()
+        self.keys = self.add_key_group("pythoncheck", 2)
+        self.keys.add_keybinding("python_code_format", fpc, self.format_item, 0, 0)
+        self.keys.add_keybinding("python_code_check", cpc, self.lint_item, 0, 0)
         self.set_signal_handler()
         # load startup config
         self.keyfile = GLib.KeyFile.new()
@@ -305,13 +312,7 @@ class PyCheckPlugin(Peasy.Plugin, Peasy.PluginConfigure):
         if not DEFAULT_LINTER:
             return
         o = self.geany_plugin.geany_data.object
-        signals = (
-            "document-reload",
-            "document-open",
-            "document-activate",
-            "document-before-save",
-            "document-save",
-        )
+        signals = ("document-open", "document-activate", "document-save", "document-before-save")
         for sig in signals:
             self.handlers.append(o.connect(sig, self.on_document_notify))
 
@@ -329,8 +330,12 @@ class PyCheckPlugin(Peasy.Plugin, Peasy.PluginConfigure):
             Geany.msgwin_switch_tab(Geany.MessageWindowTabNum.MESSAGE, False)
         return False
 
-    def on_item_click(self, item=None):
-        if not get_formatter:
+    def on_lint_item_click(self, item=None):
+        cur_doc = Geany.document_get_current()
+        self.on_document_notify(None, cur_doc)
+
+    def on_format_item_click(self, item=None):
+        if not DEFAULT_FORMATTER:
             return
         cur_doc = Geany.document_get_current()
         if not cur_doc or cur_doc.file_type.id != Geany.FiletypeID.FILETYPES_PYTHON:
@@ -360,8 +365,10 @@ class PyCheckPlugin(Peasy.Plugin, Peasy.PluginConfigure):
             Geany.msgwin_switch_tab(Geany.MessageWindowTabNum.MESSAGE, False)
 
     def do_disable(self):
-        self.item.destroy()
-        self.item = None
+        self.format_item.destroy()
+        self.format_item = None
+        self.lint_item.destroy()
+        self.lint_item = None
         self.keys = None
         if self.handlers:
             o = self.geany_plugin.geany_data.object
