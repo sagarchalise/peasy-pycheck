@@ -1,5 +1,7 @@
 # peasy-pycheck
 
+###NOTE: See [Pycoding for geany](https://github.com/sagarchalise/geany-pycoding).
+
 Python Code Checker and Formatter for Geany IDE based on [Peasy](https://github.com/kugel-/peasy)
 
 
